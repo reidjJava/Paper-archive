@@ -25,9 +25,25 @@ Paper requires [**Java 8**](http://www.oracle.com/technetwork/java/javase/downlo
 
 How To (Compiling Jar From Source)
 ------
-To compile Paper, you need JDK 8, maven, and an internet connection.
+To compile Paper, you need JDK 8 and an internet connection. Gradle and Maven
+wrappers are included, so no system-wide Gradle or Maven installation is needed.
 
-Clone this repo, run `./paper jar` from *bash*, get files.
+On Windows:
+
+```bat
+gradlew.bat applyPatches
+gradlew.bat build
+gradlew.bat runServer
+```
+
+On Linux/macOS, use the same tasks through `./gradlew`.
+
+`runServer` builds the API and server before launching it. The test server lives
+in `work/test-server` and uses port `25566` by default. Optional environment
+variables are `PAPER_JAVA_HOME`, `PAPER_TEST_MEMORY`, `PAPER_TEST_PORT`,
+`PAPER_TEST_DIR`, and `PAPER_DEBUG_PORT`.
+Run `gradlew.bat paperTasks` (or `./gradlew paperTasks`) for all Paper-specific
+tasks.
 
 How To (Pull Request)
 ------

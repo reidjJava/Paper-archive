@@ -22,10 +22,22 @@ function applyPatch {
     $gitcmd branch -f upstream "$branch" >/dev/null
 
     cd "$basedir"
-    if [ ! -d  "$basedir/$target" ]; then
+    if [ ! -d "$basedir/$target/.git" ]; then
+        if [ -d "$basedir/$target" ] && [ -n "$(find "$basedir/$target" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+            echo "$target exists but is not a Git repository; refusing to modify the parent repository." >&2
+            exit 1
+        fi
+        rm -rf "$basedir/$target"
         $gitcmd clone "$what" "$target"
     fi
     cd "$basedir/$target"
+
+    repository_root="$($gitcmd rev-parse --show-toplevel)"
+    repository_root="$(cd "$repository_root" && pwd -P)"
+    if [ "$repository_root" != "$(pwd -P)" ]; then
+        echo "Refusing to reset $target because it is not an independent Git repository." >&2
+        exit 1
+    fi
 
     echo "Resetting $target to $what_name..."
     $gitcmd remote rm upstream > /dev/null 2>&1

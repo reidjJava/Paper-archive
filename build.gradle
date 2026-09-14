@@ -1,0 +1,171 @@
+import org.gradle.internal.os.OperatingSystem
+
+group = 'com.destroystokyo.paper'
+version = 'dev-SNAPSHOT'
+
+def paperRoot = projectDir.absolutePath
+
+def bashExecutable = {
+    if (!OperatingSystem.current().isWindows()) {
+        return 'bash'
+    }
+
+    def candidates = [
+        System.getenv('PAPER_BASH'),
+        'C:/Program Files/Git/bin/bash.exe',
+        'C:/Program Files/Git/usr/bin/bash.exe'
+    ].findAll { it != null && !it.trim().isEmpty() }
+
+    def installed = candidates.find { new File(it).isFile() }
+    return installed ?: 'bash'
+}
+
+def runScript = { Exec task, String script, List<String> arguments = [] ->
+    task.workingDir projectDir
+    task.commandLine([bashExecutable(), new File(projectDir, script).absolutePath, paperRoot] + arguments)
+    task.environment 'MAVEN_USER_HOME', file('.maven-user-home').absolutePath
+    task.standardInput = System.in
+}
+
+task applyPatches(type: Exec) {
+    group = 'paper'
+    description = 'Initializes upstream sources and applies all Paper patches.'
+    runScript(delegate, 'scripts/build.sh')
+}
+
+task rebuildPatches(type: Exec) {
+    group = 'paper'
+    description = 'Rebuilds patch files from the Paper-API and Paper-Server commits.'
+    runScript(delegate, 'scripts/rebuildPatches.sh')
+}
+
+task buildModules(type: Exec) {
+    group = 'build'
+    description = 'Builds and installs the patched Maven modules.'
+    workingDir projectDir
+    def mavenWrapper = file(OperatingSystem.current().isWindows() ? 'mvnw.cmd' : 'mvnw')
+    commandLine mavenWrapper.absolutePath, 'clean', 'install', "-Dmaven.repo.local=${file('.m2-local').absolutePath}"
+    environment 'MAVEN_USER_HOME', file('.maven-user-home').absolutePath
+    standardInput = System.in
+}
+
+task buildPaperclip(type: Exec, dependsOn: buildModules) {
+    group = 'build'
+    description = 'Assembles paperclip.jar from the patched server and vanilla server.'
+    runScript(delegate, 'scripts/paperclip.sh')
+    outputs.file file('paperclip.jar')
+}
+
+task build(dependsOn: buildPaperclip) {
+    group = 'build'
+    description = 'Applies patches and builds paperclip.jar.'
+}
+
+buildModules.mustRunAfter applyPatches
+buildPaperclip.mustRunAfter buildModules
+build.dependsOn applyPatches
+
+task setupMcDev(type: Exec) {
+    group = 'paper'
+    description = 'Creates IDE sources for unmodified Minecraft server classes.'
+    runScript(delegate, 'scripts/makemcdevsrc.sh')
+}
+
+task updateUpstream(type: Exec) {
+    group = 'paper'
+    description = 'Updates the Spigot upstream repositories (use -Pall for all supported repositories).'
+    runScript(delegate, 'scripts/upstreamMerge.sh', project.hasProperty('all') ? ['all'] : [])
+}
+
+task runServer(type: Exec, dependsOn: buildModules) {
+    group = 'application'
+    description = 'Builds the patched modules and starts the Paper test server without a Bash intermediary.'
+    workingDir file(System.getenv('PAPER_TEST_DIR') ?: 'work/test-server')
+    standardInput = System.in
+
+    doFirst {
+        def info = new groovy.json.JsonSlurper().parse(file('work/BuildData/info.json'))
+        def serverJar = file("Paper-Server/target/paper-${info.minecraftVersion}.jar")
+        if (!serverJar.isFile()) {
+            throw new GradleException("Server jar was not produced: ${serverJar}. Run applyPatches before runServer on a clean checkout.")
+        }
+
+        def eula = new File(workingDir, 'eula.txt')
+        if (!eula.isFile() || !eula.text.readLines().any { it.trim().equalsIgnoreCase('eula=true') }) {
+            throw new GradleException("Accept the Minecraft EULA by writing 'eula=true' to ${eula}.")
+        }
+
+        def memory = System.getenv('PAPER_TEST_MEMORY') ?: '2G'
+        def javaHome = System.getenv('PAPER_JAVA_HOME') ?: System.getenv('JAVA_HOME')
+        def javaCommand = javaHome
+            ? new File(javaHome, OperatingSystem.current().isWindows() ? 'bin/java.exe' : 'bin/java').absolutePath
+            : 'java'
+        def jvmArgs = [
+            '-server', "-Xmx${memory}", '-Dfile.encoding=UTF-8',
+            '-XX:MaxGCPauseMillis=150', '-XX:+UseG1GC',
+            '-DIReallyKnowWhatIAmDoingISwear=1', '-XX:TargetSurvivorRatio=90',
+            '-XX:+UnlockExperimentalVMOptions', '-XX:G1NewSizePercent=50',
+            '-XX:G1MaxNewSizePercent=80', '-XX:InitiatingHeapOccupancyPercent=10',
+            '-XX:G1MixedGCLiveThresholdPercent=50'
+        ]
+
+        def debugPort = System.getenv('PAPER_DEBUG_PORT')
+        if (debugPort) {
+            jvmArgs += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${debugPort}"
+        }
+
+        // Keep the development server away from the conventional production port.
+        def serverPort = System.getenv('PAPER_TEST_PORT') ?: '25566'
+        def serverArgs = ['--port', serverPort]
+
+        commandLine([javaCommand] + jvmArgs + ['-jar', serverJar.absolutePath] + serverArgs)
+    }
+}
+
+task editApiPatch(type: Exec) {
+    group = 'paper patches'
+    description = 'Starts an interactive rebase for editing an API patch.'
+    runScript(delegate, 'scripts/editPatch.sh', ['Paper-API'])
+}
+
+task editServerPatch(type: Exec) {
+    group = 'paper patches'
+    description = 'Starts an interactive rebase for editing a server patch.'
+    runScript(delegate, 'scripts/editPatch.sh', ['Paper-Server'])
+}
+
+task continuePatchEdit(type: Exec) {
+    group = 'paper patches'
+    description = 'Amends the selected patch, continues the rebase, and rebuilds patch files.'
+    runScript(delegate, 'scripts/continuePatchEdit.sh')
+}
+
+task clean(type: Delete) {
+    group = 'build'
+    description = 'Deletes Gradle build output without removing generated source repositories.'
+    delete rootProject.buildDir
+}
+
+task cleanGenerated(type: Delete) {
+    group = 'paper'
+    description = 'Deletes all generated Paper repositories and work files.'
+    delete file('Paper-API'), file('Paper-Server'), file('work')
+}
+
+task paperTasks {
+    group = 'help'
+    description = 'Shows the Paper-specific Gradle tasks.'
+    doLast {
+        println '''Paper build tasks:
+  ./gradlew applyPatches       Apply upstream and Paper patches
+  ./gradlew build              Build paperclip.jar
+  ./gradlew rebuildPatches     Save repository commits as patch files
+  ./gradlew runServer          Build modules and start the test server
+  ./gradlew setupMcDev         Prepare IDE sources for Minecraft classes
+  ./gradlew updateUpstream     Update upstream repositories
+  ./gradlew editApiPatch       Edit an existing API patch
+  ./gradlew editServerPatch    Edit an existing server patch
+  ./gradlew continuePatchEdit  Finish an existing patch edit
+  ./gradlew cleanGenerated     Remove generated repositories and work files'''
+    }
+}

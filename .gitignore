@@ -52,6 +52,11 @@ out/
 
 # other stuff
 run/
+.gradle/
+.gradle-local/
+.m2-local/
+.maven-user-home/
+.paper-last-edit
 
 Paper-Server
 Paper-API
