@@ -291,12 +291,6 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
                 String s3 = String.format("%.3fs", new Object[] { Double.valueOf((double) i1 / 1.0E9D)});
 
                 DedicatedServer.LOGGER.info("Done ({})! For help, type \"help\" or \"?\"", s3);
-                if (this.propertyManager.a("announce-player-achievements")) {
-                    this.worlds.get(0).getGameRules().set("announceAdvancements", this.propertyManager.getBoolean("announce-player-achievements", true) ? "true" : "false"); // CraftBukkit
-                    this.propertyManager.b("announce-player-achievements");
-                    this.propertyManager.savePropertiesFile();
-                }
-
                 if (this.propertyManager.getBoolean("enable-query", false)) {
                     DedicatedServer.LOGGER.info("Starting GS4 status listener");
                     this.n = new RemoteStatusListener(this);

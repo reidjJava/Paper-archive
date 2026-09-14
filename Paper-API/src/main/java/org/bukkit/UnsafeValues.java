@@ -24,9 +24,7 @@ public interface UnsafeValues {
 
     Statistic getStatisticFromInternalName(String name);
 
-    Achievement getAchievementFromInternalName(String name);
-
-    List<String> tabCompleteInternalStatisticOrAchievementName(String token, List<String> completions);
+    List<String> tabCompleteInternalStatisticName(String token, List<String> completions);
 
     /**
      * Load an advancement represented by the specified string into the server.

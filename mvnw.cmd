@@ -51,12 +51,22 @@ if exist "%USERPROFILE%\mavenrc_pre.cmd" call "%USERPROFILE%\mavenrc_pre.cmd" %*
 
 @setlocal
 
+if "%MAVEN_USER_HOME%" == "" set "MAVEN_USER_HOME=%~dp0.maven-user-home"
+
 set ERROR_CODE=0
 
 @REM To isolate internal variables from possible post scripts, we use another setlocal
 @setlocal
 
 @REM ==== START VALIDATION ====
+if not "%PAPER_JAVA_HOME%" == "" set "JAVA_HOME=%PAPER_JAVA_HOME%"
+if not "%JAVA_HOME%" == "" goto OkJHome
+for /d %%D in ("%USERPROFILE%\.jdks\corretto-1.8*") do (
+  if exist "%%~fD\bin\java.exe" (
+    set "JAVA_HOME=%%~fD"
+    goto OkJHome
+  )
+)
 if not "%JAVA_HOME%" == "" goto OkJHome
 
 echo. >&2

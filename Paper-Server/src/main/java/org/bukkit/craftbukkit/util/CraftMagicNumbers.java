@@ -27,7 +27,6 @@ import net.minecraft.server.MojangsonParser;
 import net.minecraft.server.NBTTagCompound;
 import net.minecraft.server.StatisticList;
 
-import org.bukkit.Achievement;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -143,12 +142,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
     }
 
     @Override
-    public Achievement getAchievementFromInternalName(String name) {
-        throw new UnsupportedOperationException("Not supported in this Minecraft version.");
-    }
-
-    @Override
-    public List<String> tabCompleteInternalStatisticOrAchievementName(String token, List<String> completions) {
+    public List<String> tabCompleteInternalStatisticName(String token, List<String> completions) {
         List<String> matches = new ArrayList<String>();
         Iterator iterator = StatisticList.stats.iterator();
         while (iterator.hasNext()) {

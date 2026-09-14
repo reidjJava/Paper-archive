@@ -63,6 +63,7 @@ Paper-API/.git-direct-source-backup/
 Paper-Server/target/
 Paper-API/target/
 Paperclip.jar
+Paper-Server.jar
 paperclip.jar
 paperclip-*.jar
 paperclip.properties

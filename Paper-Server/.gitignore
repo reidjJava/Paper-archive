@@ -34,5 +34,4 @@ dependency-reduced-pom.xml
 *.iws
 .idea/
 
-/src/main/resources/achievement
 /src/main/resources/lang

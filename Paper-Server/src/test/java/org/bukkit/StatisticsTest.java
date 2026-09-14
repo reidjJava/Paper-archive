@@ -13,7 +13,7 @@ import org.junit.Test;
 
 import com.google.common.collect.HashMultiset;
 
-public class StatisticsAndAchievementsTest extends AbstractTestingBase {
+public class StatisticsTest extends AbstractTestingBase {
 
     @Test
     @SuppressWarnings("unchecked")

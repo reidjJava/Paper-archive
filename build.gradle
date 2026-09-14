@@ -1,5 +1,70 @@
 import org.gradle.internal.os.OperatingSystem
 
+allprojects {
+    apply plugin: 'idea'
+}
+
+subprojects {
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+}
+
+def localMavenJars = fileTree(file('.m2-local')) {
+    include '**/*.jar'
+    exclude '**/*-sources.jar', '**/*-javadoc.jar', '**/*-tests.jar'
+    // These are this project's own outputs. Keeping them on the IDE classpath
+    // makes IntelliJ resolve org.bukkit classes from a jar instead of sources.
+    exclude '**/com/destroystokyo/paper/paper-api/**/*.jar'
+    exclude '**/com/destroystokyo/paper/paper/**/*.jar'
+    exclude '**/com/google/guava/guava/**/*.jar'
+}
+
+def guava21 = files(file('.m2-local/com/google/guava/guava/21.0/guava-21.0.jar'))
+
+project(':Paper-API') {
+    apply plugin: 'java'
+
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+
+    dependencies {
+        implementation guava21
+        implementation localMavenJars
+    }
+
+    idea.module {
+        sourceDirs = [file('src/main/java')]
+        testSourceDirs = [file('src/test/java')]
+        excludeDirs += file('target')
+    }
+}
+
+project(':Paper-Server') {
+    apply plugin: 'java'
+
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+
+    dependencies {
+        implementation project(':Paper-API')
+        implementation guava21
+        implementation localMavenJars
+    }
+
+    // The Maven build creates the real shaded server. A plain Gradle jar is not
+    // executable and must not be exposed as a misleading server artifact.
+    tasks.named('jar') {
+        enabled = false
+    }
+
+    idea.module {
+        sourceDirs = [file('src/main/java')]
+        testSourceDirs = [file('src/test/java')]
+        excludeDirs += file('target')
+    }
+}
+
 group = 'com.destroystokyo.paper'
 version = 'dev-SNAPSHOT'
 
@@ -43,6 +108,23 @@ task buildModules(type: Exec) {
     standardInput = System.in
 }
 
+task serverJar(dependsOn: buildModules) {
+    group = 'build'
+    description = 'Creates the executable Paper-Server.jar in the project root.'
+    def sourceJar = file('Paper-Server/target/paper-1.12.2.jar')
+    def destinationJar = file('Paper-Server.jar')
+    inputs.file sourceJar
+    outputs.file destinationJar
+
+    doLast {
+        java.nio.file.Files.copy(
+            sourceJar.toPath(),
+            destinationJar.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING
+        )
+    }
+}
+
 task buildPaperclip(type: Exec, dependsOn: buildModules) {
     group = 'build'
     description = 'Assembles paperclip.jar from the directly compiled server and vanilla server.'
@@ -54,6 +136,8 @@ task build(dependsOn: buildPaperclip) {
     group = 'build'
     description = 'Builds paperclip.jar directly from the tracked sources.'
 }
+
+build.dependsOn serverJar
 
 task setupMcDev(type: Exec) {
     group = 'paper'
@@ -125,6 +209,7 @@ task paperTasks {
         println '''Paper build tasks:
   ./gradlew setupWorkspace     Prepare external Minecraft/Spigot dependencies
   ./gradlew build              Build paperclip.jar
+  ./gradlew serverJar          Build executable Paper-Server.jar
   ./gradlew runServer          Build modules and start the test server
   ./gradlew setupMcDev         Prepare IDE sources for Minecraft classes
   ./gradlew cleanGenerated     Remove generated work files (sources stay intact)'''
