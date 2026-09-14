@@ -58,8 +58,10 @@ run/
 .maven-user-home/
 .paper-last-edit
 
-Paper-Server
-Paper-API
+Paper-Server/.git-direct-source-backup/
+Paper-API/.git-direct-source-backup/
+Paper-Server/target/
+Paper-API/target/
 Paperclip.jar
 paperclip.jar
 paperclip-*.jar

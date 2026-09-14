@@ -31,7 +31,7 @@ wrappers are included, so no system-wide Gradle or Maven installation is needed.
 On Windows:
 
 ```bat
-gradlew.bat applyPatches
+gradlew.bat setupWorkspace
 gradlew.bat build
 gradlew.bat runServer
 ```
@@ -44,6 +44,11 @@ variables are `PAPER_JAVA_HOME`, `PAPER_TEST_MEMORY`, `PAPER_TEST_PORT`,
 `PAPER_TEST_DIR`, and `PAPER_DEBUG_PORT`.
 Run `gradlew.bat paperTasks` (or `./gradlew paperTasks`) for all Paper-specific
 tasks.
+
+`Paper-API` and `Paper-Server` are regular directories tracked directly by this
+repository. Edit their Java sources normally; patch files and patch rebuilding
+are no longer part of the development workflow. `setupWorkspace` only prepares
+external Minecraft/Spigot build dependencies and does not modify Paper sources.
 
 How To (Pull Request)
 ------

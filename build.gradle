@@ -27,21 +27,15 @@ def runScript = { Exec task, String script, List<String> arguments = [] ->
     task.standardInput = System.in
 }
 
-task applyPatches(type: Exec) {
+task setupWorkspace(type: Exec) {
     group = 'paper'
-    description = 'Initializes upstream sources and applies all Paper patches.'
-    runScript(delegate, 'scripts/build.sh')
-}
-
-task rebuildPatches(type: Exec) {
-    group = 'paper'
-    description = 'Rebuilds patch files from the Paper-API and Paper-Server commits.'
-    runScript(delegate, 'scripts/rebuildPatches.sh')
+    description = 'Initializes external Spigot/BuildData dependencies without changing Paper sources.'
+    runScript(delegate, 'scripts/setupWorkspace.sh')
 }
 
 task buildModules(type: Exec) {
     group = 'build'
-    description = 'Builds and installs the patched Maven modules.'
+    description = 'Builds and installs Paper-API and Paper-Server directly from source.'
     workingDir projectDir
     def mavenWrapper = file(OperatingSystem.current().isWindows() ? 'mvnw.cmd' : 'mvnw')
     commandLine mavenWrapper.absolutePath, 'clean', 'install', "-Dmaven.repo.local=${file('.m2-local').absolutePath}"
@@ -51,19 +45,15 @@ task buildModules(type: Exec) {
 
 task buildPaperclip(type: Exec, dependsOn: buildModules) {
     group = 'build'
-    description = 'Assembles paperclip.jar from the patched server and vanilla server.'
+    description = 'Assembles paperclip.jar from the directly compiled server and vanilla server.'
     runScript(delegate, 'scripts/paperclip.sh')
     outputs.file file('paperclip.jar')
 }
 
 task build(dependsOn: buildPaperclip) {
     group = 'build'
-    description = 'Applies patches and builds paperclip.jar.'
+    description = 'Builds paperclip.jar directly from the tracked sources.'
 }
-
-buildModules.mustRunAfter applyPatches
-buildPaperclip.mustRunAfter buildModules
-build.dependsOn applyPatches
 
 task setupMcDev(type: Exec) {
     group = 'paper'
@@ -71,15 +61,9 @@ task setupMcDev(type: Exec) {
     runScript(delegate, 'scripts/makemcdevsrc.sh')
 }
 
-task updateUpstream(type: Exec) {
-    group = 'paper'
-    description = 'Updates the Spigot upstream repositories (use -Pall for all supported repositories).'
-    runScript(delegate, 'scripts/upstreamMerge.sh', project.hasProperty('all') ? ['all'] : [])
-}
-
 task runServer(type: Exec, dependsOn: buildModules) {
     group = 'application'
-    description = 'Builds the patched modules and starts the Paper test server without a Bash intermediary.'
+    description = 'Builds the direct source modules and starts the Paper test server.'
     workingDir file(System.getenv('PAPER_TEST_DIR') ?: 'work/test-server')
     standardInput = System.in
 
@@ -87,7 +71,7 @@ task runServer(type: Exec, dependsOn: buildModules) {
         def info = new groovy.json.JsonSlurper().parse(file('work/BuildData/info.json'))
         def serverJar = file("Paper-Server/target/paper-${info.minecraftVersion}.jar")
         if (!serverJar.isFile()) {
-            throw new GradleException("Server jar was not produced: ${serverJar}. Run applyPatches before runServer on a clean checkout.")
+            throw new GradleException("Server jar was not produced: ${serverJar}. Run setupWorkspace once, then runServer again.")
         }
 
         def eula = new File(workingDir, 'eula.txt')
@@ -122,24 +106,6 @@ task runServer(type: Exec, dependsOn: buildModules) {
     }
 }
 
-task editApiPatch(type: Exec) {
-    group = 'paper patches'
-    description = 'Starts an interactive rebase for editing an API patch.'
-    runScript(delegate, 'scripts/editPatch.sh', ['Paper-API'])
-}
-
-task editServerPatch(type: Exec) {
-    group = 'paper patches'
-    description = 'Starts an interactive rebase for editing a server patch.'
-    runScript(delegate, 'scripts/editPatch.sh', ['Paper-Server'])
-}
-
-task continuePatchEdit(type: Exec) {
-    group = 'paper patches'
-    description = 'Amends the selected patch, continues the rebase, and rebuilds patch files.'
-    runScript(delegate, 'scripts/continuePatchEdit.sh')
-}
-
 task clean(type: Delete) {
     group = 'build'
     description = 'Deletes Gradle build output without removing generated source repositories.'
@@ -148,8 +114,8 @@ task clean(type: Delete) {
 
 task cleanGenerated(type: Delete) {
     group = 'paper'
-    description = 'Deletes all generated Paper repositories and work files.'
-    delete file('Paper-API'), file('Paper-Server'), file('work')
+    description = 'Deletes generated external work files; direct Paper sources are preserved.'
+    delete file('work')
 }
 
 task paperTasks {
@@ -157,15 +123,10 @@ task paperTasks {
     description = 'Shows the Paper-specific Gradle tasks.'
     doLast {
         println '''Paper build tasks:
-  ./gradlew applyPatches       Apply upstream and Paper patches
+  ./gradlew setupWorkspace     Prepare external Minecraft/Spigot dependencies
   ./gradlew build              Build paperclip.jar
-  ./gradlew rebuildPatches     Save repository commits as patch files
   ./gradlew runServer          Build modules and start the test server
   ./gradlew setupMcDev         Prepare IDE sources for Minecraft classes
-  ./gradlew updateUpstream     Update upstream repositories
-  ./gradlew editApiPatch       Edit an existing API patch
-  ./gradlew editServerPatch    Edit an existing server patch
-  ./gradlew continuePatchEdit  Finish an existing patch edit
-  ./gradlew cleanGenerated     Remove generated repositories and work files'''
+  ./gradlew cleanGenerated     Remove generated work files (sources stay intact)'''
     }
 }
